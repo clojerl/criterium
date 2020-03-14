@@ -13,6 +13,8 @@
 
 (ns criterium.well)
 
+#?(:clje (defmacro MAX_VALUE [] 2147483647))
+
 ;;; Macros to help convert unsigned algorithm to our implementation with signed
 ;;; integers.
 ;;; unsign is used to convert the [0.5,-0.5] range back onto [1,0]
@@ -23,7 +25,9 @@
      (if (neg? n#)
        (bit-shift-left ~a (- n#))
        (bit-and
-        (bit-shift-right Integer/MAX_VALUE (dec n#))
+        (bit-shift-right #?(:clj Integer/MAX_VALUE
+                            :clje (MAX_VALUE))
+                         (dec n#))
         (bit-shift-right ~a n#)))))
 
 (defmacro unsign
@@ -33,7 +37,10 @@
   `(let [v# ~x]
      (if (neg? v#) (+ 1 v#) v#)))
 
-(def int-max (bit-or (bit-shift-left Integer/MAX_VALUE 1) 1))
+(def int-max (bit-or (bit-shift-left #?(:clj Integer/MAX_VALUE
+                                        :clje (MAX_VALUE))
+                                     1)
+                     1))
 
 (defmacro limit-bits [x]
   `(bit-and int-max ~x))
@@ -41,12 +48,29 @@
 (defmacro mat0-pos [t v]
   `(let [v# ~v] (bit-xor v# (bit-shift-right v# ~t))))
 
-(defmacro mat0-neg [t v]
+#?(:clj
+   (defmacro mat0-neg [t v]
   `(let [v# ~v]
      (long (bit-xor v# (limit-bits (bit-shift-left v# (- ~t)))))))
+   :clje
+   (defmacro mat0-neg [t v]
+  `(let [v# ~v]
+     (bit-xor v# (limit-bits (bit-shift-left v# (- ~t)))))))
 
-(defmacro add-mod-32 [a b]
-  `(long (bit-and (+ ~a ~b) 0x01f)))
+
+#?(:clj
+   (defmacro add-mod-32 [a b]
+     `(long (bit-and (+ ~a ~b) 0x01f)))
+   :clje
+   (defmacro add-mod-32 [a b]
+     `(bit-and (+ ~a ~b) 0x01f)))
+
+#?(:clje
+   (do
+     (defn aget [tuple index]
+       (erlang/element (inc index) tuple))
+     (defn aset [tuple index value]
+       (erlang/setelement (inc index) tuple value))))
 
 (defn well-rng-1024a
   "Well RNG 1024a
@@ -54,9 +78,10 @@ See: Improved Long-Period Generators Based on Linear Recurrences Modulo 2
 F. Panneton, P. L'Ecuyer and M. Matsumoto
 http://www.iro.umontreal.ca/~panneton/WELLRNG.html"
   ([] (well-rng-1024a
-       (long-array 32 (repeatedly 32 #(rand-int Integer/MAX_VALUE)))
+       (apply tuple (repeatedly 32 #(rand-int #?(:clj Integer/MAX_VALUE
+                                                 :clje (MAX_VALUE)))))
        (rand-int 32)))
-  ([^longs state ^long index]
+  ([state index]
      {:pre [(<= 0 index 32)]}
      (let [m1 3
            m2 24

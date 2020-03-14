@@ -89,8 +89,8 @@
   [quantile data]
   (let [n (dec (count data))
         interp (fn [x]
-                 (let [f (Math/floor x)
-                       i (long f)
+                 (let [f (#?(:clj Math/floor :clje clj_utils/floor) x)
+                       i #?(:clj (long f) :clje f)
                        p (- x f)]
                    (+ (* p (nth data (inc i))) (* (- 1.0 p) (nth data i)))))]
     (interp (* quantile n))))
@@ -135,7 +135,7 @@
    BCa of ABC."
   [mean variance]
   (let [n-sigma 1.96                    ; use 95% confidence interval
-        delta (* n-sigma (Math/sqrt variance))]
+        delta (* n-sigma (#?(:clj Math/sqrt :clje math/sqrt) variance))]
     [(- mean delta) (+ mean delta)]))
 
 (defn bootstrap-estimate
@@ -161,20 +161,21 @@ descending order (so the last element of coefficients is the constant term)."
   Handbook of Mathematical Functions: with Formulas, Graphs, and Mathematical
   Tables. Milton Abramowitz (Editor), Irene A. Stegun (Editor), 7.1.26"
   [x]
-  (let [x (double x)
-        sign (Math/signum x)
-        x (Math/abs x)
+  (let [x #?(:clj (double x) :clje (float x))
+        sign (#?(:clj Math/signum :clje clj_utils/signum) x)
+        x (#?(:clj Math/abs :clje erlang/abs) x)
         a [1.061405429 -1.453152027 1.421413741 -0.284496736 0.254829592 0.0]
         p 0.3275911
         t (/ (+ 1.0 (* p x)))
-        value (- 1.0 (* (polynomial-value t a) (Math/exp (- (* x x)))))]
+        value (- 1.0 (* (polynomial-value t a)
+                        (#?(:clj Math/exp :clje math/exp) (- (* x x)))))]
     (* sign value)))
 
 (defn normal-cdf
   "Probability p(X<x), for a normal distrubtion.  Uses the polynomial erf
   approximation above, and so is not super accurate."
   [x]
-  (* 0.5 (+ 1.0 (erf (/ x (Math/sqrt 2.0))))))
+  (* 0.5 (+ 1.0 (erf (/ x (#?(:clj Math/sqrt :clje math/sqrt) 2.0))))))
 
 (defn normal-quantile
   "Normal quantile function. Given a quantile in (0,1), return the normal value
@@ -183,7 +184,7 @@ descending order (so the last element of coefficients is the constant term)."
   Wichura, MJ. 'Algorithm AS241' The Percentage Points of the Normal
   Distribution. Applied Statistics, 37, 477-484 "
   [x]
-  (let [x (double x)
+  (let [x #?(:clj (double x) :clje (float x))
         a [2509.0809287301226727
            33430.575583588128105
            67265.770927008700853
@@ -239,13 +240,15 @@ descending order (so the last element of coefficients is the constant term)."
             r (- 180625e-6 (* v v))]
         (* v (/ (polynomial-value r a) (polynomial-value r b))))
       (let [r (if (< x 0.5) x (- 1.0 x))
-            r (Math/sqrt (- (Math/log r)))]
+            r (#?(:clj Math/sqrt :clje math/sqrt) (- (#?(:clj Math/log :clje math/log) r)))]
         (if (<= r 5.0)
-          (let [r (- r (double 16/10))]
-            (* (Math/signum (double (- x 0.5)))
+          (let [r (- r #?(:clj (double 1.6) :clje 1.6))]
+            (* (#?(:clj Math/signum :clje clj_utils/signum)
+                #?(:clj (double (- x 0.5)) :clje (float (- x 0.5))))
                (/ (polynomial-value r c) (polynomial-value r d))))
           (let [r (- r 5.0)]
-            (* (Math/signum (double (- x 0.5)))
+            (* (#?(:clj Math/signum :clje clj_utils/signum)
+                #?(:clj (double (- x 0.5)) :clje (float (- x 0.5))))
                (/ (polynomial-value r e) (polynomial-value r f)))))))))
 
 
@@ -257,8 +260,8 @@ descending order (so the last element of coefficients is the constant term)."
 (defn trunc
   "Round towards zero to an integeral value."
   [x] (if (pos? x)
-        (Math/floor x)
-        (Math/ceil x)))
+        (#?(:clj Math/floor :clje clj_utils/floor) x)
+        (#?(:clj Math/ceil :clje clj_utils/ceil) x)))
 
 (defn jacknife
   "Jacknife statistics on data."
@@ -274,7 +277,7 @@ descending order (so the last element of coefficients is the constant term)."
         jack-mean (mean jack-samples)
         jack-deviation (map #(- jack-mean %1) jack-samples)
         acc (/ (reduce + 0.0 (map cube jack-deviation))
-               (* 6.0 (Math/pow (reduce + 0.0 (map sqr jack-deviation)) 1.5)))
+               (* 6.0 (#?(:clj Math/pow :clje math/pow) (reduce + 0.0 (map sqr jack-deviation)) 1.5)))
         tt (map
             #(normal-cdf (+ z0 (/ (+ z0 %1) (- 1.0 (* acc (+ z0 %1))))))
             z-alpha)
@@ -325,7 +328,7 @@ descending order (so the last element of coefficients is the constant term)."
   Equation 7, Nonparametric assessment of multimodality for univariate
   data. Salgado-Ugarte IH, Shimizu M"
   [h-k sample-variance]
-  (Math/sqrt (+ 1 (/ (sqr h-k) sample-variance))))
+  (#?(:clj Math/sqrt :clje math/sqrt) (+ 1 (/ (sqr h-k) sample-variance))))
 
 (defn smoothed-sample
   "Smoothed estimation function."
@@ -339,8 +342,8 @@ descending order (so the last element of coefficients is the constant term)."
 (defn gaussian-weight
   "Weight function for gaussian kernel."
   [t]
-  (let [k (Math/pow (* 2 Math/PI) -0.5)]
-    (* k (Math/exp (/ (* t t) -2)))))
+  (let [k (#?(:clj Math/pow :clje math/pow) (* 2 #?(:clj Math/PI :clje (math/pi))) -0.5)]
+    (* k (#?(:clj Math/exp :clje math/exp) (/ (* t t) -2)))))
 
 (defn kernel-density-estimator
   "Kernel density estimator for x, given n samples X, weights K and width h."

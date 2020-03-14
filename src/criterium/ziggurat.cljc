@@ -20,32 +20,47 @@
 
 (defn- sqr [x] (* x x))
 
+#?(:clje
+   (do
+     (defn aget [tuple index]
+       (erlang/element (inc index) tuple))
+     (defn aset [tuple index value]
+       (erlang/setelement (inc index) tuple value))))
+
 (defn zignor-init
   "Initialise tables."
   [c r v]
   (let [c (int c)
-        r (double r)
-        v (double v)
-        #^doubles s-adzigx (double-array (inc c))
-        #^doubles s-adzigr (double-array c)
-        f (Math/exp (* -0.5e0 r r))]
+        r #?(:clj (double r)
+             :clje (float r))
+        v #?(:clj (double v)
+             :clje (float v))
+        #?@(:clj
+            [#^doubles s-adzigx (double-array (inc c))
+             #^doubles s-adzigr (double-array c)]
+            :clje
+            [s-adzigx (erlang/make_tuple (inc c) nil)
+             s-adzigr (erlang/make_tuple c nil)])
+        f (#?(:clj Math/exp :clje math/exp) (* -0.5e0 r r))]
     (aset s-adzigx 0 (/ v f)) ;; [0] is bottom block: V / f(R)
     (aset s-adzigx 1 r)
-    (aset s-adzigx c (double 0.0))
+    (aset s-adzigx c #?(:clj (double 0.0) :clje (float 0.0)))
     (loop [i (int 2)
            f f]
       (aset s-adzigx i
-            (Math/sqrt (* -2e0 (Math/log (+ (/ v (aget s-adzigx (dec i))) f)))))
+            (#?(:clj Math/sqrt :clje math/sqrt)
+             (* -2e0 (#?(:clj Math/log :clje math/log) (+ (/ v (aget s-adzigx (dec i))) f)))))
       (when (< i c)
         (recur
          (inc i)
-         (Math/exp (* -0.5e0 (aget s-adzigx i) (aget s-adzigx i))))))
+         (#?(:clj Math/exp :clje math/exp) (* -0.5e0 (aget s-adzigx i) (aget s-adzigx i))))))
 
-    (for [#^Integer i (range c)]
+    (for [#?(:clj #^Integer i :clje i) (range c)]
       (let [j (int i)]
         (aset s-adzigr j (/ (aget s-adzigx (inc j)) (aget s-adzigx j)))))
     [s-adzigr s-adzigx r (dec c)]))
 
+(defmacro MAX_VALUE [] 2147483647)
 
 (defn random-normal-zig
   "Pseudo-random normal variates.
@@ -60,12 +75,15 @@ See:
   ([rng-seq c r v] (random-normal-zig rng-seq (zignor-init c r v)))
   ([c r v]
      (random-normal-zig (criterium.well/well-rng-1024a) (zignor-init c r v)))
-  ([rng-seq [#^doubles s-adzigr #^doubles s-adzigx zignor-r mask]]
+  ([rng-seq [#?(:clj #^doubles s-adzigr :clje s-adzigr)
+             #?(:clj #^doubles s-adzigx :clje s-adzigx)
+             zignor-r
+             mask]]
      (letfn [(random-normal-tail
                [min negative rng-seq]
                (loop [rng-seq rng-seq]
-                 (let [x (/ (Math/log (first rng-seq)) min)
-                       y (Math/log (first (next rng-seq)))]
+                 (let [x (/ (#?(:clj Math/log :clje math/log) (first rng-seq)) min)
+                       y (#?(:clj Math/log :clje math/log) (first (next rng-seq)))]
                    (if (>= (* -2e0 y) (* x x))
                      (if negative
                        [(- x min) (drop 2 rng-seq)]
@@ -74,12 +92,15 @@ See:
        (let [[deviate rng-seq]
              (loop [rng-seq rng-seq]
                (let [r  (first rng-seq)
-                     u  (double (- (* 2e0 r) 1e0))
+                     u  #?(:clj (double (- (* 2e0 r) 1e0))
+                           :clje (float (- (* 2e0 r) 1e0)))
                      i  (bit-and
-                         (int (* Integer/MAX_VALUE (first (drop 1 rng-seq))))
+                         (int (* #?(:clj Integer/MAX_VALUE
+                                    :clje (MAX_VALUE))
+                                 (first (drop 1 rng-seq))))
                          mask)]
                  ;; first try the rectangular boxes
-                 (if (< (Math/abs u) (nth s-adzigr i))
+                 (if (< (#?(:clj Math/abs :clje erlang/abs) u) (nth s-adzigr i))
                    [(* u (nth s-adzigx i)) (drop 2 rng-seq)]
 
                    ;; bottom box: sample from the tail
@@ -88,12 +109,12 @@ See:
 
                      ;; is this a sample from the wedges?
                      (let [x (* u (nth s-adzigx i))
-                           f0 (Math/exp
+                           f0 (#?(:clj Math/exp :clje math/exp)
                                (* -0.5e0
-                                  (- (Math/pow (nth s-adzigx i) 2) (sqr x))))
-                           f1 (Math/exp
+                                  (- (#?(:clj Math/pow :clje math/pow) (nth s-adzigx i) 2) (sqr x))))
+                           f1 (#?(:clj Math/exp :clje math/exp)
                                (* -0.5e0
-                                  (- (Math/pow (nth s-adzigx (inc i)) 2)
+                                  (- (#?(:clj Math/pow :clje math/pow) (nth s-adzigx (inc i)) 2)
                                      (sqr x))))]
                        (if  (< (+ f1 (* (first (drop 2 rng-seq) ) (- f0 f1)))
                                1.0)

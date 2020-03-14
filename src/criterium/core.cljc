@@ -52,9 +52,9 @@ library that applies many of the same statistical techniques."
   (:use clojure.set
          criterium.stats)
   (:require criterium.well)
-  (:import (java.lang.management ManagementFactory)))
+  #?(:clj (:import (java.lang.management ManagementFactory))))
 
-(def ^{:dynamic true} *use-mxbean-for-times* nil)
+#?(:clj (def ^{:dynamic true} *use-mxbean-for-times* nil))
 
 (def ^{:doc "Fraction of excution time allowed for final cleanup before a
              warning is issued."
@@ -146,11 +146,14 @@ library that applies many of the same statistical techniques."
    (let [vals (map - (vals state-1) (vals state-2))]
      (JvmClassLoaderState. (first vals) (second vals)))))
 
-(defn jvm-class-loader-state []
-  (let [bean (.. ManagementFactory getClassLoadingMXBean)]
-    (JvmClassLoaderState. (. bean getLoadedClassCount)
-                          (. bean getUnloadedClassCount))))
-
+#?(:clj
+   (defn jvm-class-loader-state []
+     (let [bean (.. ManagementFactory getClassLoadingMXBean)]
+       (JvmClassLoaderState. (. bean getLoadedClassCount)
+                             (. bean getUnloadedClassCount))))
+   :clje
+   (defn jvm-class-loader-state []
+     (JvmClassLoaderState. 0 0)))
 
 (defrecord JvmCompilationState [compilation-time]
   StateChanged
@@ -162,82 +165,144 @@ library that applies many of the same statistical techniques."
    (let [vals (map - (vals state-1) (vals state-2))]
      (JvmCompilationState. (first vals)))))
 
-(defn jvm-compilation-state
-  "Returns the total compilation time for the JVM instance."
-  []
-  (let [bean (.. ManagementFactory getCompilationMXBean)]
-    (JvmCompilationState. (if (. bean isCompilationTimeMonitoringSupported)
-                            (. bean getTotalCompilationTime)
-                            -1))))
+#?(:clj
+   (defn jvm-compilation-state
+     "Returns the total compilation time for the JVM instance."
+     []
+     (let [bean (.. ManagementFactory getCompilationMXBean)]
+       (JvmCompilationState. (if (. bean isCompilationTimeMonitoringSupported)
+                               (. bean getTotalCompilationTime)
+                               -1))))
+   :clje
+   (defn jvm-compilation-state
+     "Returns the total compilation time for the JVM instance."
+     []
+     (JvmCompilationState. -1)))
 
-(defn jvm-jit-name
-  "Returns the name of the JIT compiler."
-  []
-  (let [bean (.. ManagementFactory getCompilationMXBean)]
-    (. bean getName)))
+#?(:clj
+   (defn jvm-jit-name
+     "Returns the name of the JIT compiler."
+     []
+     (let [bean (.. ManagementFactory getCompilationMXBean)]
+       (. bean getName)))
+   :clje
+   (defn jvm-jit-name
+     "Returns the name of the JIT compiler."
+     []
+     "No JIT compiler available"))
 
-(defn os-details
-  "Return the operating system details as a hash."
-  []
-  (let [bean (.. ManagementFactory getOperatingSystemMXBean)]
-    {:arch (. bean getArch)
-     :available-processors (. bean getAvailableProcessors)
-     :name (. bean getName)
-     :version (. bean getVersion)}))
+#?(:clj
+   (defn os-details
+     "Return the operating system details as a hash."
+     []
+     (let [bean (.. ManagementFactory getOperatingSystemMXBean)]
+       {:arch (. bean getArch)
+        :available-processors (. bean getAvailableProcessors)
+        :name (. bean getName)
+        :version (. bean getVersion)}))
+   :clje
+   (defn os-details
+     "Return the operating system details as a hash."
+     []
+     {:arch (erlang/system_info :system_architecture)
+      :available-processors (erlang/system_info :schedulers)
+      :name (os/type)
+      :version (os/version)}))
 
-(defn runtime-details
-  "Return the runtime details as a hash."
-  []
-  (let [bean (.. ManagementFactory getRuntimeMXBean)
-        props (. bean getSystemProperties)]
-    {:input-arguments (. bean getInputArguments)
-     :name (. bean getName)
-     :spec-name (. bean getSpecName)
-     :spec-vendor (. bean getSpecVendor)
-     :spec-version (. bean getSpecVersion)
-     :vm-name (. bean getVmName)
-     :vm-vendor (. bean getVmVendor)
-     :vm-version (. bean getVmVersion)
-     :java-version (get props "java.version")
-     :java-runtime-version (get props "java.runtime.version")
-     :sun-arch-data-model (get props "sun.arch.data.model")
-     :clojure-version-string (clojure-version)
-     :clojure-version *clojure-version*}))
+#?(:clj
+   (defn runtime-details
+     "Return the runtime details as a hash."
+     []
+     (let [bean (.. ManagementFactory getRuntimeMXBean)
+           props (. bean getSystemProperties)]
+       {:input-arguments (. bean getInputArguments)
+        :name (. bean getName)
+        :spec-name (. bean getSpecName)
+        :spec-vendor (. bean getSpecVendor)
+        :spec-version (. bean getSpecVersion)
+        :vm-name (. bean getVmName)
+        :vm-vendor (. bean getVmVendor)
+        :vm-version (. bean getVmVersion)
+        :java-version (get props "java.version")
+        :java-runtime-version (get props "java.runtime.version")
+        :sun-arch-data-model (get props "sun.arch.data.model")
+        :clojure-version-string (clojure-version)
+        :clojure-version *clojure-version*}))
+   :clje
+   (defn runtime-details
+     "Return the runtime details as a hash."
+     []
+     {:input-arguments nil
+      :name nil
+      :spec-name nil
+      :spec-vendor nil
+      :spec-version nil
+      :vm-name nil
+      :vm-vendor nil
+      :vm-version nil
+      :java-version nil
+      :java-runtime-version nil
+      :sun-arch-data-model nil
+      :clojure-version-string (clojure-version)
+      :clojure-version *clojure-version*}))
 
-(defn system-properties
-  "Return the operating system details."
-  []
-  (let [bean (.. ManagementFactory getRuntimeMXBean)]
-    (. bean getSystemProperties)))
+#?(:clj
+   (defn system-properties
+     "Return the operating system details."
+     []
+     (let [bean (.. ManagementFactory getRuntimeMXBean)]
+       (. bean getSystemProperties)))
+   :clje
+   (defn system-properties
+     "Return the operating system details."
+     []
+     (->> (os/getenv)
+          (map erlang/list_to_binary.1)
+          (map #(binary/split % "="))
+          (map vec)
+          (into {}))))
 
 ;;; OS Specific Code
 (defn clear-cache-mac []
-  (.. Runtime getRuntime (exec "/usr/bin/purge") waitFor))
+  #?(:clj (.. Runtime getRuntime (exec "/usr/bin/purge") waitFor)
+     :clje (os/cmd #erl"usr/bin/purge")))
 
 (defn clear-cache-linux []
   ;; not sure how to deal with the sudo
-  (.. Runtime getRuntime
-      (exec "sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'") waitFor))
+  #?(:clj (.. Runtime getRuntime
+              (exec "sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'") waitFor)
+     :clje (os/cmd #erl"sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'")))
 
 (defn clear-cache []
-  (condp #(re-find %1 %2) (.. System getProperties (getProperty "os.name"))
-    #"Mac" (clear-cache-mac)
-    :else (warn "don't know how to clear disk buffer cache for "
-                (.. System getProperties (getProperty "os.name")))))
+  #?(:clj
+     (condp #(re-find %1 %2) (.. System getProperties (getProperty "os.name"))
+       #"Mac" (clear-cache-mac)
+       :else (warn "don't know how to clear disk buffer cache for "
+                   (.. System getProperties (getProperty "os.name"))))
+     :clje
+     (cond = (os/type)
+       #erl[:unix :darwin] (clear-cache-mac)
+       :else (warn "don't know how to clear disk buffer cache for "
+                   (os/type)))))
 
 ;;; Time reporting
 (defmacro timestamp
   "Obtain a timestamp"
-  [] `(System/nanoTime))
+  []
+  #?(:clj `(System/nanoTime)
+     :clje `(erlang/monotonic_time :nano_seconds)))
 
 (defn timestamp-2
   "Obtain a timestamp, possibly using MXBean."
   []
-  (if *use-mxbean-for-times*
-    (.. ManagementFactory getThreadMXBean getCurrentThreadCpuTime)
-    (System/nanoTime)))
+  #?(:clj
+     (if *use-mxbean-for-times*
+       (.. ManagementFactory getThreadMXBean getCurrentThreadCpuTime)
+       (System/nanoTime))
+     :clje
+     (erlang/monotonic_time :nano_seconds)))
 
-;;; Execution timing
+;;; execution timing
 (defmacro time-body
   "Returns a vector containing execution time and result of specified function."
   ([expr pre]
@@ -272,37 +337,70 @@ class counts, change in compilation time and result of specified function."
 
 
 ;;; Memory reporting
-(defn heap-used
-  "Report a (inconsistent) snapshot of the heap memory used."
-  []
-  (let [runtime (Runtime/getRuntime)]
-    (- (.totalMemory runtime) (.freeMemory runtime))))
+#?(:clj
+   (defn heap-used
+     "Report a (inconsistent) snapshot of the heap memory used."
+     []
+     (let [runtime (Runtime/getRuntime)]
+       (- (.totalMemory runtime) (.freeMemory runtime))))
+   :clje
+   (defn heap-used
+     "Report a (inconsistent) snapshot of the heap memory used."
+     []
+     (let [memory-data (memsup/get_system_memory_data)]
+       (- (proplists/get_value :total_memory memory-data)
+          (proplists/get_value :free_memory memory-data)))))
 
-(defn memory
-  "Report a (inconsistent) snapshot of the memory situation."
-  []
-  (let [runtime (Runtime/getRuntime)]
-    [ (.freeMemory runtime) (.totalMemory runtime) (.maxMemory runtime)]))
+#?(:clj
+   (defn memory
+     "Report a (inconsistent) snapshot of the memory situation."
+     []
+     (let [runtime (Runtime/getRuntime)]
+       [ (.freeMemory runtime) (.totalMemory runtime) (.maxMemory runtime)]))
+   :clje
+   (defn memory
+     "Report a (inconsistent) snapshot of the memory situation."
+     []
+     (let [memory-data (memsup/get_system_memory_data)]
+       [(proplists/get_value :free_memory memory-data)
+        (proplists/get_value :total_memory memory-data)
+        (proplists/get_value :system_total_memory memory-data)])))
 
 ;;; Memory management
-(defn force-gc
-  "Force garbage collection and finalisers so that execution time associated
-   with this is not incurred later. Up to max-attempts are made.
-"
-  ([] (force-gc *max-gc-attempts*))
-  ([max-attempts]
-     (debug "Cleaning JVM allocations ...")
-     (loop [memory-used (heap-used)
-            attempts 0]
-       (System/runFinalization)
-       (System/gc)
-       (let [new-memory-used (heap-used)]
-         (if (and (or (pos? (.. ManagementFactory
-                                getMemoryMXBean
-                                getObjectPendingFinalizationCount))
-                      (> memory-used new-memory-used))
-                  (< attempts max-attempts))
-           (recur new-memory-used (inc attempts)))))))
+#?(:clj
+   (defn force-gc
+     "Force garbage collection and finalisers so that execution time associated
+      with this is not incurred later. Up to max-attempts are made.
+     "
+     ([] (force-gc *max-gc-attempts*))
+     ([max-attempts]
+      (debug "Cleaning JVM allocations ...")
+      (loop [memory-used (heap-used)
+             attempts 0]
+        (System/runFinalization)
+        (System/gc)
+        (let [new-memory-used (heap-used)]
+          (if (and (or (pos? (.. ManagementFactory
+                                 getMemoryMXBean
+                                 getObjectPendingFinalizationCount))
+                       (> memory-used new-memory-used))
+                   (< attempts max-attempts))
+            (recur new-memory-used (inc attempts)))))))
+   :clje
+   (defn force-gc
+     "Force garbage collection and finalisers so that execution time associated
+      with this is not incurred later. Up to max-attempts are made.
+     "
+     ([] (force-gc *max-gc-attempts*))
+     ([max-attempts]
+      (debug "Cleaning Erlang allocations in current process ...")
+      (loop [memory-used (heap-used)
+             attempts 0]
+        (erlang/garbage_collect)
+        (let [new-memory-used (heap-used)]
+          (if (and (> memory-used new-memory-used)
+                   (< attempts max-attempts))
+            (recur new-memory-used (inc attempts))))))))
 
 (defn final-gc
   "Time a final clean up of JVM memory. If this time is significant compared to
@@ -335,9 +433,10 @@ class counts, change in compilation time and result of specified function."
   (set-place [_ v] "Set mutable field to value.")
   (get-place [_] "Get mutable field value."))
 
-(deftype Unsynchronized [^{:unsynchronized-mutable true :tag Object} v]
+(deftype Unsynchronized [#?(:clj ^{:unsynchronized-mutable true :tag Object} v
+                            :clje v)]
   MutablePlace
-  (set-place [_ value] (set! v value))
+  (set-place [_ value] #?(:clj (set! v value)))
   (get-place [_] v))
 
 (def mutable-place (Unsynchronized. nil))
@@ -363,11 +462,11 @@ class counts, change in compilation time and result of specified function."
   ret-vals-arr could potentially be read by a different thread."
   [n f]
   (time-body
-   (loop [i (long (dec n))
+   (loop [i #?(:clj (long (dec n)) :clje (dec n))
           v (f)]
      (set-place mutable-place v)
      (if (pos? i)
-       (recur (unchecked-dec i) (f))
+       (recur #?(:clj (unchecked-dec i) :clje (dec i)) (f))
        v))))
 
 ;;; ## Execution
@@ -379,18 +478,40 @@ class counts, change in compilation time and result of specified function."
     (get-place mutable-place) ;; just for good measure, use the mutable value
     time-and-ret))
 
-(defn collect-samples
-  [sample-count execution-count f gc-before-sample]
-  {:pre [(pos? sample-count)]}
-  (let [result (object-array sample-count)]
-    (loop [i (long 0)]
-      (if (< i sample-count)
-        (do
-          (when gc-before-sample
-            (force-gc))
-          (aset result i (execute-expr execution-count f))
-          (recur (unchecked-inc i)))
-        result))))
+#?(:clje
+   (do
+     (defn aset [tuple index value]
+       (erlang/setelement (inc index) tuple value))
+     (defn long [x] x)
+     (defn double [x] (float x))))
+
+#?(:clj
+   (defn collect-samples
+     [sample-count execution-count f gc-before-sample]
+     {:pre [(pos? sample-count)]}
+     (let [result (object-array sample-count)]
+       (loop [i (long 0)]
+         (if (< i sample-count)
+           (do
+             (when gc-before-sample
+               (force-gc))
+             (aset result i (execute-expr execution-count f))
+             (recur (unchecked-inc i)))
+           result))))
+   :clje
+   (defn collect-samples
+     [sample-count execution-count f gc-before-sample]
+     {:pre [(pos? sample-count)]}
+     (let [result (erlang/make_tuple sample-count nil)]
+       (loop [i (long 0)
+              result result]
+         (if (< i sample-count)
+           (do
+             (when gc-before-sample
+               (force-gc))
+             (recur (inc i)
+                    (aset result i (execute-expr execution-count f))))
+           result)))))
 
 ;;; Compilation
 (defn warmup-for-jit
@@ -429,7 +550,7 @@ class counts, change in compilation time and result of specified function."
                  (+ count c)
                  (if (and (= old-cl-state new-cl-state)
                           (= old-comp-state new-comp-state))
-                   (unchecked-inc delta-free)
+                   #?(:clj (unchecked-inc delta-free) :clje (inc delta-free))
                    (long 0))
                  new-cl-state
                  new-comp-state))))))
@@ -648,17 +769,17 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (progress "Checking outlier significance")
   (let [mean-block (point-estimate mean-estimate)
         variance-block (point-estimate variance-estimate)
-        std-dev-block (Math/sqrt variance-block)
+        std-dev-block (#?(:clj Math/sqrt :clje math/sqrt) variance-block)
         mean-action (/ mean-block n)
         mean-g-min (/ mean-action 2)
-        sigma-g (min (/ mean-g-min 4) (/ std-dev-block (Math/sqrt n)))
+        sigma-g (min (/ mean-g-min 4) (/ std-dev-block (#?(:clj Math/sqrt :clje math/sqrt) n)))
         variance-g (* sigma-g sigma-g)
         c-max (fn [t-min]
                 (let [j0 (- mean-action t-min)
                       k0 (- (* n n j0 j0))
                       k1 (+ variance-block (- (* n variance-g)) (* n j0 j0))
                       det (- (* k1 k1) (* 4 variance-g k0))]
-                  (Math/floor (/ (* -2 k0) (+ k1 (Math/sqrt det))))))
+                  (#?(:clj Math/floor :clje clj_utils/floor) (/ (* -2 k0) (+ k1 (#?(:clj Math/sqrt :clje math/sqrt) det))))))
         var-out (fn [c]
                   (let [nmc (- n c)]
                     (* (/ nmc n) (- variance-block (* nmc variance-g)))))
@@ -772,7 +893,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
                                        (:sample-count times))
         sqr (fn [x] (* x x))
         m (mean (map double (:samples times)))
-        s (Math/sqrt (variance (map double (:samples times))))]
+        s (#?(:clj Math/sqrt :clje math/sqrt) (variance (map double (:samples times))))]
     (merge times
            {:outliers outliers
             :mean (scale-bootstrap-estimate
@@ -910,18 +1031,18 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 
 (defn report-estimate-sqrt
   [msg estimate significance]
-  (let [mean (Math/sqrt (first estimate))
+  (let [mean (#?(:clj Math/sqrt :clje math/sqrt) (first estimate))
         [factor unit] (scale-time mean)]
     (apply
      report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
      msg
      (format-value mean factor unit)
      (* significance 100)
-     (map #(format-value (Math/sqrt %) factor unit) (last estimate)))))
+     (map #(format-value (#?(:clj Math/sqrt :clje math/sqrt) %) factor unit) (last estimate)))))
 
 (defn report-point-estimate-sqrt
   [msg estimate]
-  (let [mean (Math/sqrt (first estimate))
+  (let [mean (#?(:clj Math/sqrt :clje math/sqrt) (first estimate))
         [factor unit] (scale-time mean)]
     (report "%32s : %s\n" msg (format-value mean factor unit))))
 
