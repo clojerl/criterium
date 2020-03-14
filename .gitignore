@@ -12,3 +12,5 @@ java.hprof.*
 .ritz-exception-filters
 target
 checkouts
+_build/
+rebar.lock

@@ -1,0 +1,12 @@
+{ application, criterium
+, [ {vsn, git}
+  , {description, "Benchmarking library"}
+  , {modules, []}
+  , { applications
+    , [ stdlib
+      , kernel
+      , os_mon
+      ]
+    }
+  ]
+}.
