@@ -655,14 +655,20 @@ sequence:
   [sample-count warmup-jit-period target-execution-time exprs gc-before-sample]
   (force-gc)
   (let [first-executions (map (fn [{:keys [f]}] (time-body (f))) exprs)
-        _ (progress (format "Warming up %d expression for %.2e sec each:"
+        _ (progress (format #?(:clj "Warming up %d expression for %.2e sec each:"
+                               :clje "Warming up ~p expression for ~p sec each:")
                           (count exprs) (/ warmup-jit-period 1.0e9)))
         warmup (vec (for [{:keys [f expr-string]} exprs]
-                      (do (progress (format "    %s..." expr-string))
+                      (do (progress (format #?(:clj "    %s..."
+                                               :clje "    ~s...")
+                                            expr-string))
                           (warmup-for-jit warmup-jit-period f))))]
     (progress
      (format
-      "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
+      #?(:clj
+         "Estimating execution counts for %d expressions.  Target execution time = %.2e sec:"
+         :clje
+         "Estimating execution counts for ~p expressions.  Target execution time = ~p sec:")
                       (count exprs) (/ target-execution-time 1.0e9)))
     (let [exprs (map-indexed
                  (fn [idx {:keys [f expr-string] :as expr}]
@@ -682,12 +688,15 @@ sequence:
                          (do
                            (progress
                             (format
-                             "    Running sample %d/%d for %d expressions:"
+                             #?(:clj "    Running sample %d/%d for %d expressions:"
+                                :clje "    Running sample ~p/~p for ~p expressions:")
                              (inc i) sample-count (count exprs)))
                            (doall
                             (for [{:keys [f n-exec expr-string] :as expr} exprs]
                               (do
-                                (progress (format "        %s..." expr-string))
+                                (progress (format #?(:clj "        %s..."
+                                                     :clje "        ~s...")
+                                                  expr-string))
                                 (assoc expr
                                   :sample (first
                                            (collect-samples
@@ -1018,14 +1027,18 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
    :else [1 "sec"]))
 
 (defn format-value [value scale unit]
-  (format "%f %s" (* scale value) unit))
+  (format #?(:clj "%f %s"
+             :clje "~p ~s")
+          (* scale value)
+          unit))
 
 (defn report-estimate
   [msg estimate significance]
   (let [mean (first estimate)
         [factor unit] (scale-time mean)]
     (apply
-     report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+     report #?(:clj "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+               :clje "~s : ~s  ~p% CI: (~s, ~s)\n")
      msg
      (format-value mean factor unit)
      (* significance 100)
@@ -1035,12 +1048,15 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   ([msg estimate]
      (let [mean (first estimate)
            [factor unit] (scale-time mean)]
-       (report "%32s : %s\n" msg (format-value mean factor unit))))
+       (report #?(:clj "%32s : %s\n"
+                  :clje "~s : ~s\n")
+               msg (format-value mean factor unit))))
   ([msg estimate quantile]
      (let [mean (first estimate)
            [factor unit] (scale-time mean)]
        (report
-        "%32s : %s (%4.1f%%)\n"
+        #?(:clj "%32s : %s (%4.1f%%)\n"
+           :clje "~s : ~s (~p%)\n")
         msg (format-value mean factor unit) (* quantile 100)))))
 
 (defn report-estimate-sqrt
@@ -1048,7 +1064,8 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (let [mean (#?(:clj Math/sqrt :clje math/sqrt) (first estimate))
         [factor unit] (scale-time mean)]
     (apply
-     report "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+     report #?(:clj "%32s : %s  %2.1f%% CI: (%s, %s)\n"
+               :clje "~s : ~s  ~p% CI: (~s, ~s)\n")
      msg
      (format-value mean factor unit)
      (* significance 100)
@@ -1058,7 +1075,10 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   [msg estimate]
   (let [mean (#?(:clj Math/sqrt :clje math/sqrt) (first estimate))
         [factor unit] (scale-time mean)]
-    (report "%32s : %s\n" msg (format-value mean factor unit))))
+    (report #?(:clj "%32s : %s\n"
+               :clje "~s : ~s\n")
+            msg
+            (format-value mean factor unit))))
 
 (defn report-outliers [results]
   (let [outliers (:outliers results)
@@ -1072,13 +1092,18 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
     (when (some pos? values)
       (let [sum (reduce + values)]
         (report
-         "\nFound %d outliers in %d samples (%2.4f %%)\n"
+         #?(:clj "\nFound %d outliers in %d samples (%2.4f %%)\n"
+            :clje "\nFound ~p outliers in ~p samples (~p %)\n")
          sum sample-count (* 100.0 (/ sum sample-count))))
       (doseq [[v c] (partition 2 (interleave (filter pos? values) types))]
-        (report "\t%s\t %d (%2.4f %%)\n" c v (* 100.0 (/ v sample-count))))
-      (report " Variance from outliers : %2.4f %%"
+        (report #?(:clj "\t%s\t %d (%2.4f %%)\n"
+                   :clje "\t~s\t ~p (~p %)\n")
+                c v (* 100.0 (/ v sample-count))))
+      (report #?(:clj " Variance from outliers : %2.4f %%"
+                 :clje " Variance from outliers : ~p %")
               (* (:outlier-variance results) 100.0))
-      (report " Variance is %s by outliers\n"
+      (report #?(:clj " Variance is %s by outliers\n"
+                 :clje " Variance is ~s by outliers\n")
               (-> (:outlier-variance results) outlier-effect labels)))))
 
 (defn report-result [results & opts]
