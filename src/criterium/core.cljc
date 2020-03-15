@@ -482,7 +482,7 @@ class counts, change in compilation time and result of specified function."
    (do
      (defn aset [tuple index value]
        (erlang/setelement (inc index) tuple value))
-     (defn long [x] x)
+     (defn long [x] (int x))
      (defn double [x] (float x))))
 
 #?(:clj
@@ -861,7 +861,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
      "Sets the estimated overhead."
      []
      (progress "Estimating sampling overhead")
-     (set! estimated-overhead-cache (estimate-overhead))))
+     (reset! estimated-overhead-cache (estimate-overhead))))
 
 #?(:clj
    (defn estimated-overhead
