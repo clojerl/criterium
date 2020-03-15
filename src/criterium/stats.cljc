@@ -121,7 +121,9 @@
   "Sample with replacement."
   [x rng]
   (let [n (count x)]
-    (map #(nth x %1) (sample-uniform n n rng))))
+    (map #(nth x #?(:clj %1
+                    :clje (int %1)))
+         (sample-uniform n n rng))))
 
 (defn bootstrap-sample
   "Bootstrap sampling of a statistic, using resampling with replacement."

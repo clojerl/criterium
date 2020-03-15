@@ -502,7 +502,7 @@ class counts, change in compilation time and result of specified function."
    (defn collect-samples
      [sample-count execution-count f gc-before-sample]
      {:pre [(pos? sample-count)]}
-     (let [result (erlang/make_tuple sample-count nil)]
+     (let [result (erlang/make_tuple (int sample-count) nil)]
        (loop [i (long 0)
               result result]
          (if (< i sample-count)
