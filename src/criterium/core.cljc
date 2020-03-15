@@ -837,19 +837,33 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
       :lower-q
       first))
 
-(def estimated-overhead-cache nil)
+#?(:clj (def estimated-overhead-cache nil)
+   :clje (def estimated-overhead-cache (atom nil)))
 
-(defn estimated-overhead!
-  "Sets the estimated overhead."
-  []
-  (progress "Estimating sampling overhead")
-  (alter-var-root
-   #'estimated-overhead-cache (constantly (estimate-overhead))))
+#?(:clj
+   (defn estimated-overhead!
+     "Sets the estimated overhead."
+     []
+     (progress "Estimating sampling overhead")
+     (alter-var-root
+      #'estimated-overhead-cache (constantly (estimate-overhead))))
+   :clje
+   (defn estimated-overhead!
+     "Sets the estimated overhead."
+     []
+     (progress "Estimating sampling overhead")
+     (set! estimated-overhead-cache (estimate-overhead))))
 
-(defn estimated-overhead
-  []
-  (or estimated-overhead-cache
-      (estimated-overhead!)))
+#?(:clj
+   (defn estimated-overhead
+     []
+     (or estimated-overhead-cache
+         (estimated-overhead!)))
+   :clje
+   (defn estimated-overhead
+     []
+     (or @estimated-overhead-cache
+         (estimated-overhead!))))
 
 ;;; options
 (defn extract-report-options
