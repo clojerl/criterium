@@ -92,12 +92,18 @@ http://www.iro.umontreal.ca/~panneton/WELLRNG.html"
            z1 (bit-xor (aget state index)
                  (mat0-pos 8 (aget state (add-mod-32 index m1))))
            z2 (bit-xor (mat0-neg -19 (aget state (add-mod-32 index m2)))
-                       (mat0-neg -14 (aget state (add-mod-32 index m3))))]
-       (aset state index (bit-xor z1 z2))
-       (aset state new-index
-             (bit-xor (bit-xor (mat0-neg -11 z0) (mat0-neg -7 z1))
-                      (mat0-neg -13 z2)))
-       (let  []
-         (lazy-seq
-          (cons (unsign (* (aget state new-index) fact))
-                (well-rng-1024a state new-index)))))))
+                       (mat0-neg -14 (aget state (add-mod-32 index m3))))
+           #?@(:clje
+               [state  (-> state
+                           (aset index (bit-xor z1 z2))
+                           (aset new-index
+                                 (bit-xor (bit-xor (mat0-neg -11 z0) (mat0-neg -7 z1))
+                                          (mat0-neg -13 z2))))])]
+       #?@(:clj
+           [(aset state index (bit-xor z1 z2))
+            (aset state new-index
+                  (bit-xor (bit-xor (mat0-neg -11 z0) (mat0-neg -7 z1))
+                           (mat0-neg -13 z2)))])
+       (lazy-seq
+        (cons (unsign (* (aget state new-index) fact))
+              (well-rng-1024a state new-index))))))
