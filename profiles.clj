@@ -8,6 +8,10 @@
        :global-vars {*unchecked-math* true}}
  :1.8 {:dependencies [[org.clojure/clojure "1.8.0"]]
        :global-vars {*unchecked-math* true}}
+ :1.10 {:dependencies [[org.clojure/clojure "1.10.1"]
+                       [nrepl "0.6.0"]
+                       [clojure-complete "0.2.5"]]
+        :global-vars {*unchecked-math* true}}
  :doc
  {:dependencies [[codox-md "0.1.0"]]
   :codox {:writer codox-md.writer/write-docs
