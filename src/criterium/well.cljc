@@ -78,8 +78,8 @@ See: Improved Long-Period Generators Based on Linear Recurrences Modulo 2
 F. Panneton, P. L'Ecuyer and M. Matsumoto
 http://www.iro.umontreal.ca/~panneton/WELLRNG.html"
   ([] (well-rng-1024a
-       (apply tuple (repeatedly 32 #(rand-int #?(:clj Integer/MAX_VALUE
-                                                 :clje (MAX_VALUE)))))
+       #?(:clj (long-array 32 (repeatedly 32 #(rand-int Integer/MAX_VALUE)))
+          :clje (apply tuple (repeatedly 32 #(rand-int (MAX_VALUE)))))
        (rand-int 32)))
   ([state index]
      {:pre [(<= 0 index 32)]}
