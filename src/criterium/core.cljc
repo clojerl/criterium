@@ -52,6 +52,7 @@ library that applies many of the same statistical techniques."
   (:use clojure.set
          criterium.stats)
   (:require criterium.well)
+  #?(:clje (:require [clojure.string :as s]))
   #?(:clj (:import (java.lang.management ManagementFactory))))
 
 #?(:clj (def ^{:dynamic true} *use-mxbean-for-times* nil))
@@ -191,6 +192,10 @@ library that applies many of the same statistical techniques."
      []
      "No JIT compiler available"))
 
+#?(:clje
+   (defn str-format [x]
+     (-> x str s/trim)))
+
 #?(:clj
    (defn os-details
      "Return the operating system details as a hash."
@@ -204,10 +209,15 @@ library that applies many of the same statistical techniques."
    (defn os-details
      "Return the operating system details as a hash."
      []
-     {:arch (erlang/system_info :system_architecture)
+     {:arch (str (erlang/system_info :system_architecture))
       :available-processors (erlang/system_info :schedulers)
-      :name (os/type)
-      :version (os/version)}))
+      :name (case* (os/type)
+              #erl[:unix _] (str-format (os/cmd #erl"uname -s"))
+              :win32 "Windows")
+      :version (let [version (os/version)]
+                 (if (erlang/is_tuple version)
+                   (s/join "." version)
+                   (str-format version)))}))
 
 #?(:clj
    (defn runtime-details
@@ -232,17 +242,16 @@ library that applies many of the same statistical techniques."
    (defn runtime-details
      "Return the runtime details as a hash."
      []
-     {:input-arguments nil
-      :name nil
-      :spec-name nil
-      :spec-vendor nil
-      :spec-version nil
-      :vm-name nil
-      :vm-vendor nil
-      :vm-version nil
-      :java-version nil
-      :java-runtime-version nil
-      :sun-arch-data-model nil
+     {:input-arguments (->> (init/get_arguments)
+                            (map (fn [[k v]]
+                                   (str "-" (name k) " "
+                                        (if (-> v first erlang/is_list)
+                                          (s/join " " v)
+                                          (str v))))))
+      :vm-name (str-format (erlang/system_info :machine))
+      :vm-version (str-format (erlang/system_info :system_version))
+      :erlang-version (erlang/system_info :otp_release)
+      :erlang-runtime-version (erlang/system_info :version)
       :clojure-version-string (clojure-version)
       :clojure-version *clojure-version*}))
 
@@ -1028,7 +1037,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
 
 (defn format-value [value scale unit]
   (format #?(:clj "%f %s"
-             :clje "~p ~s")
+             :clje "~f ~s")
           (* scale value)
           unit))
 
@@ -1038,7 +1047,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         [factor unit] (scale-time mean)]
     (apply
      report #?(:clj "%32s : %s  %2.1f%% CI: (%s, %s)\n"
-               :clje "~s : ~s  ~p% CI: (~s, ~s)\n")
+               :clje "~35.s : ~s  ~p% CI: (~s, ~s)\n")
      msg
      (format-value mean factor unit)
      (* significance 100)
@@ -1049,14 +1058,14 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
      (let [mean (first estimate)
            [factor unit] (scale-time mean)]
        (report #?(:clj "%32s : %s\n"
-                  :clje "~s : ~s\n")
+                  :clje "~35.s : ~s\n")
                msg (format-value mean factor unit))))
   ([msg estimate quantile]
      (let [mean (first estimate)
            [factor unit] (scale-time mean)]
        (report
         #?(:clj "%32s : %s (%4.1f%%)\n"
-           :clje "~s : ~s (~p%)\n")
+           :clje "~35.s : ~s (~.4f%)\n")
         msg (format-value mean factor unit) (* quantile 100)))))
 
 (defn report-estimate-sqrt
@@ -1065,7 +1074,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
         [factor unit] (scale-time mean)]
     (apply
      report #?(:clj "%32s : %s  %2.1f%% CI: (%s, %s)\n"
-               :clje "~s : ~s  ~p% CI: (~s, ~s)\n")
+               :clje "~35.s : ~s  ~.2f% CI: (~s, ~s)\n")
      msg
      (format-value mean factor unit)
      (* significance 100)
@@ -1076,7 +1085,7 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
   (let [mean (#?(:clj Math/sqrt :clje math/sqrt) (first estimate))
         [factor unit] (scale-time mean)]
     (report #?(:clj "%32s : %s\n"
-               :clje "~s : ~s\n")
+               :clje "~35.s : ~s\n")
             msg
             (format-value mean factor unit))))
 
@@ -1093,14 +1102,14 @@ See http://www.ellipticgroup.com/misc/article_supplement.pdf, p17."
       (let [sum (reduce + values)]
         (report
          #?(:clj "\nFound %d outliers in %d samples (%2.4f %%)\n"
-            :clje "\nFound ~p outliers in ~p samples (~p %)\n")
+            :clje "\nFound ~p outliers in ~p samples (~.4f %)\n")
          sum sample-count (* 100.0 (/ sum sample-count))))
       (doseq [[v c] (partition 2 (interleave (filter pos? values) types))]
         (report #?(:clj "\t%s\t %d (%2.4f %%)\n"
-                   :clje "\t~s\t ~p (~p %)\n")
+                   :clje "\t~s\t ~p (~.4f %)\n")
                 c v (* 100.0 (/ v sample-count))))
       (report #?(:clj " Variance from outliers : %2.4f %%"
-                 :clje " Variance from outliers : ~p %")
+                 :clje " Variance from outliers : ~.4f %")
               (* (:outlier-variance results) 100.0))
       (report #?(:clj " Variance is %s by outliers\n"
                  :clje " Variance is ~s by outliers\n")
